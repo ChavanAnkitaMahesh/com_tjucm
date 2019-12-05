@@ -33,6 +33,8 @@ if (!empty($this->client))
 	$appendUrl .= "&client=" . $this->client;
 }
 
+
+
 $link = 'index.php?option=com_tjucm&view=items' . $appendUrl;
 $itemId = $tjUcmFrontendHelper->getItemId($link);
 ?>
@@ -89,6 +91,7 @@ $itemId = $tjUcmFrontendHelper->getItemId($link);
 		<?php
 		if (!empty($this->items))
 		{
+
 		?>
 		<tfoot>
 			<tr>
