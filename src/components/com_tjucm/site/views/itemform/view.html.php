@@ -155,7 +155,10 @@ class TjucmViewItemform extends JViewLegacy
 
 				if (!empty($this->ucm_type))
 				{
-					$this->client     = 'com_tjucm.' . $this->ucm_type;
+					JLoader::import('components.com_tjfields.tables.type', JPATH_ADMINISTRATOR);
+					$ucmTypeTable = JTable::getInstance('Type', 'TjucmTable', array('dbo', JFactory::getDbo()));
+					$ucmTypeTable->load(array('alias' => $this->ucm_type));
+					$this->client = $ucmTypeTable->unique_identifier;
 				}
 			}
 		}
@@ -177,15 +180,14 @@ class TjucmViewItemform extends JViewLegacy
 			return;
 		}
 
-		// Get if user is allowed to save the content
-		$tjUcmModelType = JModelLegacy::getInstance('Type', 'TjucmModel');
-
-		$typeId = $tjUcmModelType->getTypeId($this->client);
-
-		$typeData = $tjUcmModelType->getItem($typeId);
+		// Get ucm type data
+		JLoader::import('components.com_tjucm.tables.type', JPATH_ADMINISTRATOR);
+		$typeTable = JTable::getInstance('Type', 'TjucmTable', array('dbo', JFactory::getDbo()));
+		$typeTable->load(array('unique_identifier' => $this->client));
+		$typeParams = json_decode($typeTable->params);
 
 		// Check if the UCM type is unpublished
-		if ($typeData->state == "0")
+		if ($typeTable->state == "0")
 		{
 			$app->enqueueMessage(Text::_('COM_TJUCM_ITEM_DOESNT_EXIST'), 'error');
 			$app->setHeader('status', 404, true);
@@ -194,10 +196,14 @@ class TjucmViewItemform extends JViewLegacy
 		}
 
 		// Set Layout to type view
-		$layout = isset($typeData->params['layout']) ? $typeData->params['layout'] : '';
-		$this->setLayout($layout);
+		$layout = isset($typeParams->layout) ? $typeParams->layout : '';
 
-		$allowedCount = $typeData->allowed_count;
+		if (isset($typeParams->layout) && !empty($typeParams->layout))
+		{
+			$this->setLayout($typeParams->layout);
+		}
+
+		$allowedCount = $typeParams->allowed_count;
 		$userId = $user->id;
 
 		if (empty($this->id))
@@ -236,7 +242,9 @@ class TjucmViewItemform extends JViewLegacy
 		// Check for errors.
 		if (count($errors = $this->get('Errors')))
 		{
-			throw new Exception(implode("\n", $errors));
+			$app->enqueueMessage(Text::_("COM_TJUCM_SOMETHING_WENT_WRONG"), 'error');
+
+			return false;
 		}
 
 		// Ucm triggger before item form display

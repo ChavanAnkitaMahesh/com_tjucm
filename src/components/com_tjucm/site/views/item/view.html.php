@@ -40,7 +40,6 @@ class TjucmViewItem extends JViewLegacy
 	public function display($tpl = null)
 	{
 		$app  = JFactory::getApplication();
-		$user = JFactory::getUser();
 
 		// Load tj-fields language file
 		$lang = JFactory::getLanguage();
@@ -76,6 +75,30 @@ class TjucmViewItem extends JViewLegacy
 		/* Get model instance here */
 		$model = $this->getModel();
 		$this->client  = JFactory::getApplication()->input->get('client');
+
+		// If did not get the client from url then get if from menu param
+		if (empty($this->client))
+		{
+			// Get the active item
+			$menuItem = $app->getMenu()->getActive();
+
+			// Get the params
+			$this->menuparams = $menuItem->params;
+
+			if (!empty($this->menuparams))
+			{
+				$this->ucm_type   = $this->menuparams->get('ucm_type');
+
+				if (!empty($this->ucm_type))
+				{
+					JLoader::import('components.com_tjfields.tables.type', JPATH_ADMINISTRATOR);
+					$ucmTypeTable = JTable::getInstance('Type', 'TjucmTable', array('dbo', JFactory::getDbo()));
+					$ucmTypeTable->load(array('alias' => $this->ucm_type));
+					$this->client = $ucmTypeTable->unique_identifier;
+				}
+			}
+		}
+
 		$this->id = JFactory::getApplication()->input->get('id');
 		$view = explode('.', $this->client);
 
@@ -85,14 +108,24 @@ class TjucmViewItem extends JViewLegacy
 			"clientComponent" => 'com_tjucm',
 			"client" => $this->client,
 			"view" => $view[1],
-			"layout" => 'default',
-			"content_id" => $this->id, )
+			"layout" => 'edit',
+			"content_id" => $this->id)
 			);
 
 		// Check for errors.
 		if (count($errors = $this->get('Errors')))
 		{
 			throw new Exception(implode("\n", $errors));
+		}
+
+		JLoader::import('components.com_tjucm.tables.type', JPATH_ADMINISTRATOR);
+		$typeTable = JTable::getInstance('Type', 'TjucmTable', array('dbo', JFactory::getDbo()));
+		$typeTable->load(array('unique_identifier' => $this->client));
+		$typeParams = json_decode($typeTable->params);
+
+		if (isset($typeParams->details_layout) && !empty($typeParams->details_layout))
+		{
+			$this->setLayout($typeParams->details_layout);
 		}
 
 		// Ucm triggger before item display

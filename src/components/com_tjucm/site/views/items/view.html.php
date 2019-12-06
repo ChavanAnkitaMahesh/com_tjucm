@@ -56,6 +56,8 @@ class TjucmViewItems extends JViewLegacy
 
 	protected $created_by;
 
+	protected $ucmTypeParams;
+
 	/**
 	 * Display the view
 	 *
@@ -88,20 +90,13 @@ class TjucmViewItems extends JViewLegacy
 		$model              = $this->getModel("Items");
 		$this->ucmTypeId    = $id = $model->getState('ucmType.id');
 		$this->client       = $model->getState('ucm.client');
-		$canCreate          = $user->authorise('core.type.createitem', 'com_tjucm.type.' . $this->ucmTypeId);
-		$canView            = $user->authorise('core.type.viewitem', 'com_tjucm.type.' . $this->ucmTypeId);
-		$canEdit            = $user->authorise('core.type.edititem', 'com_tjucm.type.' . $this->ucmTypeId);
-		$canChange          = $user->authorise('core.type.edititemstate', 'com_tjucm.type.' . $this->ucmTypeId);
-		$canEditOwn         = $user->authorise('core.type.editownitem', 'com_tjucm.type.' . $this->ucmTypeId);
-		$canDelete          = $user->authorise('core.type.deleteitem', 'com_tjucm.type.' . $this->ucmTypeId);
-		$canDeleteOwn       = $user->authorise('core.type.deleteownitem', 'com_tjucm.type.' . $this->ucmTypeId);
-		$this->canCreate    = $canCreate;
-		$this->canView      = $canView;
-		$this->canEdit      = $canEdit;
-		$this->canChange    = $canChange;
-		$this->canEditOwn   = $canEditOwn;
-		$this->canDelete    = $canDelete;
-		$this->canDeleteOwn = $canDeleteOwn;
+		$this->canCreate    = $user->authorise('core.type.createitem', 'com_tjucm.type.' . $this->ucmTypeId);
+		$this->canView      = $user->authorise('core.type.viewitem', 'com_tjucm.type.' . $this->ucmTypeId);
+		$this->canEdit      = $user->authorise('core.type.edititem', 'com_tjucm.type.' . $this->ucmTypeId);
+		$this->canChange    = $user->authorise('core.type.edititemstate', 'com_tjucm.type.' . $this->ucmTypeId);
+		$this->canEditOwn   = $user->authorise('core.type.editownitem', 'com_tjucm.type.' . $this->ucmTypeId);
+		$this->canDelete    = $user->authorise('core.type.deleteitem', 'com_tjucm.type.' . $this->ucmTypeId);
+		$this->canDeleteOwn = $user->authorise('core.type.deleteownitem', 'com_tjucm.type.' . $this->ucmTypeId);
 
 		// If did not get the client from url then get if from menu param
 		if (empty($this->client))
@@ -118,7 +113,10 @@ class TjucmViewItems extends JViewLegacy
 
 				if (!empty($this->ucm_type))
 				{
-					$this->client     = 'com_tjucm.' . $this->ucm_type;
+					JLoader::import('components.com_tjfields.tables.type', JPATH_ADMINISTRATOR);
+					$ucmTypeTable = JTable::getInstance('Type', 'TjucmTable', array('dbo', JFactory::getDbo()));
+					$ucmTypeTable->load(array('alias' => $this->ucm_type));
+					$this->client = $ucmTypeTable->unique_identifier;
 				}
 			}
 		}
@@ -136,13 +134,18 @@ class TjucmViewItems extends JViewLegacy
 		$input->set("content_id", $id);
 		$this->created_by = $input->get("created_by", '', 'INT');
 
-		// Get if user is allowed to save the content
-		$tjUcmModelType = JModelLegacy::getInstance('Type', 'TjucmModel');
-		$typeId = $tjUcmModelType->getTypeId($this->client);
+		// Get ucm type data
+		JLoader::import('components.com_tjucm.tables.type', JPATH_ADMINISTRATOR);
+		$typeTable = JTable::getInstance('Type', 'TjucmTable', array('dbo', JFactory::getDbo()));
+		$typeTable->load(array('unique_identifier' => $this->client));
+		$this->ucmTypeParams = json_decode($typeTable->params);
 
-		$TypeData = $tjUcmModelType->getItem($typeId);
+		if (isset($this->ucmTypeParams->list_layout) && !empty($this->ucmTypeParams->list_layout))
+		{
+			$this->setLayout($this->ucmTypeParams->list_layout);
+		}
 
-		$allowedCount = (!empty($TypeData->allowed_count))?$TypeData->allowed_count:'0';
+		$allowedCount = (!empty($typeTable->allowed_count))?$typeTable->allowed_count:'0';
 		$userId = $user->id;
 
 		if (empty($this->id))

@@ -115,15 +115,6 @@ class TjUcmRouter extends JComponentRouterBase
 			unset($query['client']);
 		}
 
-		if ($view == 'item')
-		{
-			if (isset($query['id']))
-			{
-				$segments[] = (INT) $query['id'];
-				unset($query['id']);
-			}
-		}
-
 		return $segments;
 	}
 
@@ -157,16 +148,14 @@ class TjUcmRouter extends JComponentRouterBase
 
 		if ($count >= 1)
 		{
-			$ucmTypeTable = Table::getInstance('Type', 'TjucmTable', array('dbo', $db));
-			$ucmTypeTable->load(array('alias' => $segments[1]));
-
-			if ($ucmTypeTable->id)
+			if (isset($segments[1]))
 			{
-				$vars['client'] = $ucmTypeTable->unique_identifier;
+				$ucmTypeTable = Table::getInstance('Type', 'TjucmTable', array('dbo', $db));
+				$ucmTypeTable->load(array('alias' => $segments[1]));
 
-				if (!empty($segments[2]))
+				if ($ucmTypeTable->id)
 				{
-					$vars['id'] = $segments[2];
+					$vars['client'] = $ucmTypeTable->unique_identifier;
 				}
 			}
 		}

@@ -48,9 +48,6 @@ class TjucmModelType extends JModelAdmin
 	 */
 	public function __construct($config = array())
 	{
-		JLoader::import('components.com_tjucm.classes.funlist', JPATH_ADMINISTRATOR);
-		$this->common  = new TjucmFunList;
-
 		parent::__construct($config);
 	}
 
@@ -313,29 +310,17 @@ class TjucmModelType extends JModelAdmin
 		if (!empty($data['id']))
 		{
 			$field_group = $this->getGroupCount($data['unique_identifier']);
-
-			// Not able to get count using getTotal method of category model
-			$field_category = $this->common->getDataValues('#__categories', 'count(*)', 'extension = "' . $data['unique_identifier'] . '"', 'loadResult');
-
-			// $field_category = $this->getCategoryCount($data['unique_identifier']);
+			$field_category = $this->getCategoryCount($data['unique_identifier']);
 
 			if ($field_group == 0 && $field_category == 0)
 			{
-				$data['unique_identifier'] = 'com_tjucm.' . $data['alias'];
+				$data['unique_identifier'] = 'com_tjucm.' . preg_replace("/[^a-zA-Z0-9]/", "", $data['alias']);
 			}
 		}
 		else
 		{
-			$data['unique_identifier'] = 'com_tjucm.' . $data['alias'];
+			$data['unique_identifier'] = 'com_tjucm.' . preg_replace("/[^a-zA-Z0-9]/", "", $data['alias']);
 		}
-
-		$params = array();
-		$params['is_subform'] = $data['is_subform'];
-		$params['allow_draft_save'] = $data['allow_draft_save'];
-		$params['allow_auto_save'] = $data['allow_auto_save'];
-		$params['publish_items'] = $data['publish_items'];
-		$params['allowed_count'] = $data['allowed_count'];
-		$params['layout'] = $data['layout'];
 
 		// If UCM type is a subform then need to add content_id as hidden field in the form - For flat subform storage
 		JLoader::import('components.com_tjfields.tables.field', JPATH_ADMINISTRATOR);
@@ -343,7 +328,7 @@ class TjucmModelType extends JModelAdmin
 		$tjfieldsFieldTable = JTable::getInstance('Field', 'TjfieldsTable', array('dbo', $db));
 		$tjfieldsFieldTable->load(array('name' => str_replace('.', '_', $data['unique_identifier']) . '_contentid'));
 
-		if ($params['is_subform'] == 1 && empty($tjfieldsFieldTable->id))
+		if ($data['params']['is_subform'] == 1 && empty($tjfieldsFieldTable->id))
 		{
 			JModelLegacy::addIncludePath(JPATH_ADMINISTRATOR . '/components/com_tjfields/models');
 			$fieldGroup = array("name" => "hidden", "title" => "hidden", "client" => $data['unique_identifier'], "state" => 1);
@@ -363,19 +348,17 @@ class TjucmModelType extends JModelAdmin
 			$input->post->set('client_type', '');
 		}
 
-		// If UCM type is a subform then it cant be saved as draft and auto save is also disabled
-		if ($params['is_subform'] == 1)
+		// Check the params 'Group' of fields & UCM type is a subform then it cant be saved as draft and auto save is also disabled
+		if ($data['params']['is_subform'] == 1)
 		{
-			$params['allow_draft_save'] = $params['allow_auto_save'] = $params['allowed_count'] = 0;
+			$data['params']['allow_draft_save']  = $data['params']['allow_auto_save'] = $data['params']['allowed_count'] = 0;
 		}
 
 		// If auto save is enabled then draft save is enabled by default
-		if ($params['allow_auto_save'] == 1)
+		if ($data['params']['allow_auto_save'] == 1)
 		{
-			$params['allow_draft_save'] = 1;
+			$data['params']['allow_draft_save'] = 1;
 		}
-
-		$data['params'] = json_encode($params);
 
 		if (parent::save($data))
 		{
@@ -415,10 +398,10 @@ class TjucmModelType extends JModelAdmin
 	public function getCategoryCount($client)
 	{
 		JLoader::import('components.com_categories.models.categories', JPATH_ADMINISTRATOR);
-		$categories_model = JModelLegacy::getInstance('Categories', 'CategoriesModel');
-		$categories_model->setState('filter.extension', $client);
+		$categoryModel = JModelLegacy::getInstance('Categories', 'CategoriesModel', array('ignore_request' => true));
+		$categoryModel->setState('filter.extension', $client);
 
-		return $categories_model->getTotal();
+		return $categoryModel->getTotal();
 	}
 
 	/**
@@ -459,5 +442,93 @@ class TjucmModelType extends JModelAdmin
 		$table->load(array('unique_identifier' => $client));
 
 		return $table->id;
+	}
+
+	/**
+	 * Method to delete one or more records.
+	 *
+	 * @param   array  &$pks  An array of record primary keys.
+	 *
+	 * @return  boolean  True if successful, false if an error occurs.
+	 *
+	 * @since   1.2.1
+	 */
+	public function delete(&$pks)
+	{
+		$pks = (array) $pks;
+
+		if (empty($pks))
+		{
+			return false;
+		}
+
+		// Load the required files in the delete operation
+		JLoader::import('components.com_tjfields.models.groups', JPATH_ADMINISTRATOR);
+		JLoader::import('components.com_tjfields.models.group', JPATH_ADMINISTRATOR);
+		JLoader::import('components.com_tjucm.models.items', JPATH_SITE);
+		JLoader::import('components.com_tjucm.models.itemform', JPATH_SITE);
+
+		// Delete related field groups and fields and items data related to the UCM Type
+		foreach ($pks as $pk)
+		{
+			if (empty($pk))
+			{
+				continue;
+			}
+
+			// Get ucm data
+			$table = $this->getTable();
+			$table->load(array('id' => $pk));
+
+			// Get all field groups in the UCM type
+			$fieldGroupsModel = JModelLegacy::getInstance('Groups', 'TjfieldsModel', array('ignore_request' => true));
+			$fieldGroupsModel->setState("filter.client", $table->unique_identifier);
+			$fieldGroups = $fieldGroupsModel->getItems();
+
+			if (!empty($fieldGroups))
+			{
+				$tjFieldsGroupModel = JModelLegacy::getInstance('group', 'TjfieldsModel', array('ignore_request' => true));
+
+				foreach ($fieldGroups as $fieldGroup)
+				{
+					// Delete field groups in UCM type
+					$status = $tjFieldsGroupModel->delete($fieldGroup->id);
+
+					if ($status === false)
+					{
+						return false;
+					}
+				}
+			}
+
+			// Get all field records related to the UCM type
+			$itemsModel = JModelLegacy::getInstance('Items', 'TjucmModel', array('ignore_request' => true));
+			$itemsModel->setState("ucm.client", $table->unique_identifier);
+			$items = $itemsModel->getItems();
+
+			// Delete records related to the UCM type
+			if (!empty($items))
+			{
+				$itemFormModel = JModelLegacy::getInstance('ItemForm', 'TjucmModel', array('ignore_request' => true));
+
+				foreach ($items as $item)
+				{
+					$status = $itemFormModel->delete($item->id);
+
+					if ($status === false)
+					{
+						return false;
+					}
+				}
+			}
+
+			// Delete UCM type
+			if (!parent::delete($pk))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
