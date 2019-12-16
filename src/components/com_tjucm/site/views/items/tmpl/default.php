@@ -200,16 +200,7 @@ $statusColumnWidth = 0;
 </div>
 </div>
 </div>
-	<?php
-	if ($this->allowedToAdd)
-	{
-		?>
-		<a target="_blank" href="<?php echo JRoute::_('index.php?option=com_tjucm&task=itemform.edit' . $appendUrl, false); ?>" class="btn btn-success btn-small">
-			<i class="icon-plus"></i><?php echo JText::_('COM_TJUCM_ADD_ITEM'); ?>
-		</a>
-		<?php
-	}
-	?>
+	
 	<input type="hidden" name="task" value=""/>
 	<input type="hidden" name="boxchecked" value="0"/>
 	<input type="hidden" name="filter_order" value="<?php echo $listOrder; ?>"/>
